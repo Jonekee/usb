@@ -1482,10 +1482,13 @@ API_EXPORTED int libusb_init(libusb_context **context)
 	list_init(&ctx->open_devs);
 
 	r = usbi_io_init(ctx);
+	if (r < 0)
+		goto err_os_exit;
+
+	r = usbi_hotplug_init(ctx);
 	if (r < 0) {
-		if (usbi_backend->exit)
-			usbi_backend->exit();
-		goto err;
+		usbi_io_exit(ctx);
+		goto err_os_exit;
 	}
 
 	pthread_mutex_lock(&default_context_lock);
@@ -1499,6 +1502,9 @@ API_EXPORTED int libusb_init(libusb_context **context)
 		*context = ctx;
 	return 0;
 
+err_os_exit:
+	if (usbi_backend->exit)
+		usbi_backend->exit();
 err:
 	free(ctx);
 	return r;
@@ -1519,6 +1525,7 @@ API_EXPORTED void libusb_exit(struct libusb_context *ctx)
 	if (!list_empty(&ctx->open_devs))
 		usbi_warn(ctx, "application left some devices open");
 
+	usbi_hotplug_exit(ctx);
 	usbi_io_exit(ctx);
 	if (usbi_backend->exit)
 		usbi_backend->exit();

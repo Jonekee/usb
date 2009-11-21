@@ -14,8 +14,11 @@ OS_SRC = $(DARWIN_USB_SRC)
 AM_CFLAGS_EXT = -no-cpp-precomp
 endif
 
-libusb_1_0_la_CFLAGS = $(VISIBILITY_CFLAGS) $(AM_CFLAGS) -pthread
-libusb_1_0_la_SOURCES = libusbi.h core.c descriptor.c io.c sync.c $(OS_SRC)
+HOTPLUG_SRC = hotplug.c hotplug/libudev.c
+
+libusb_1_0_la_CFLAGS = $(VISIBILITY_CFLAGS) $(AM_CFLAGS) -pthread $(UDEV_CFLAGS)
+libusb_1_0_la_LIBADD = $(UDEV_LIBS)
+libusb_1_0_la_SOURCES = libusbi.h core.c descriptor.c io.c sync.c $(OS_SRC) $(HOTPLUG_SRC)
 
 hdrdir = $(includedir)/libusb-1.0
 hdr_HEADERS = libusb.h

@@ -73,6 +73,9 @@ else
 	fi
 fi
 
+# libudev hotplugging
+PKG_CHECK_MODULES(UDEV, libudev)
+
 # Message logging
 AC_ARG_ENABLE([log], [AS_HELP_STRING([--disable-log], [disable all logging])],
 	[log_enabled=$enableval],

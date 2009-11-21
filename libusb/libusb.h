@@ -1228,6 +1228,19 @@ void libusb_set_pollfd_notifiers(libusb_context *ctx,
 	libusb_pollfd_added_cb added_cb, libusb_pollfd_removed_cb removed_cb,
 	void *user_data);
 
+/* hotplugging */
+
+typedef void (*libusb_device_connected_cb)(libusb_context *ctx,
+	libusb_device *device, void *user_data);
+typedef void (*libusb_device_disconnected_cb)(libusb_context *ctx,
+	libusb_device_handle *handle, void *user_data);
+
+void libusb_set_hotplug_notifiers(libusb_context *ctx,
+	libusb_device_connected_cb connected_cb,
+	libusb_device_disconnected_cb disconnected_cb, void *user_data);
+int libusb_enable_hotplug(libusb_context *ctx, int coldplug);
+void libusb_disable_hotplug(libusb_context *ctx);
+
 #ifdef __cplusplus
 }
 #endif

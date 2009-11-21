@@ -193,6 +193,14 @@ struct libusb_context {
 	 * this timerfd is maintained to trigger on the next pending timeout */
 	int timerfd;
 #endif
+
+	/* hotplugging stuff */
+	int hotplug_fd;
+	void *hp_priv;
+	const struct usbi_hp_backend *hp_backend;
+	void *hp_cb_user_data;
+	libusb_device_connected_cb device_connected_cb;
+	libusb_device_disconnected_cb device_disconnected_cb;
 };
 
 #ifdef USBI_TIMERFD_AVAILABLE
@@ -336,6 +344,38 @@ struct discovered_devs {
 
 struct discovered_devs *discovered_devs_append(
 	struct discovered_devs *discdevs, struct libusb_device *dev);
+
+/* hotplug */
+
+int usbi_hotplug_init(struct libusb_context *ctx);
+void usbi_hotplug_exit(struct libusb_context *ctx);
+int usbi_hotplug_set_pollfd(struct libusb_context *ctx, int fd, short events);
+void usbi_hotplug_notify_connect(struct libusb_context *ctx,
+	struct libusb_device *dev);
+void usbi_hotplug_notify_disconnect(struct libusb_context *ctx,
+	struct libusb_device_handle *handle);
+int usbi_hotplug_handle_events(struct libusb_context *ctx, struct pollfd *fds,
+	nfds_t nfds);
+
+struct usbi_hp_backend {
+	/* perform setup and check if support is available */
+	int (*init)(struct libusb_context *ctx);
+
+	/* optional, clean up */
+	void (*exit)(struct libusb_context *ctx);
+	
+	/* start monitoring for connections and disconnections, optionally
+	 * coldplugging all existing ones too */
+	int (*enable)(struct libusb_context *ctx, int coldplug);
+
+	/* stop monitoring */
+	void (*disable)(struct libusb_context *ctx);
+
+	/* handle an event */
+	int (*handle_events)(struct libusb_context *ctx);
+};
+
+extern const struct usbi_hp_backend usbi_hp_backend_libudev;
 
 /* OS abstraction */
 
@@ -744,6 +784,10 @@ struct usbi_os_backend {
 	 * for you to determine which actions need to be taken on the currently
 	 * active transfers.
 	 *
+	 * It is possible that none of the OS-monitored file descriptors have
+	 * activity present on them. Your implementation must detect this condition
+	 * and bail out gracefully.
+	 *
 	 * For any cancelled transfers, call usbi_handle_transfer_cancellation().
 	 * For completed transfers, call usbi_handle_transfer_completion().
 	 * For control/bulk/interrupt transfers, populate the "transferred"
@@ -761,7 +805,7 @@ struct usbi_os_backend {
 	 * Return 0 on success, or a LIBUSB_ERROR code on failure.
 	 */
 	int (*handle_events)(struct libusb_context *ctx,
-		struct pollfd *fds, nfds_t nfds, int num_ready);
+		struct pollfd *fds, nfds_t nfds, int *num_ready);
 
 	/* Get time from specified clock. At least two clocks must be implemented
 	   by the backend: USBI_CLOCK_REALTIME, and USBI_CLOCK_MONOTONIC.
@@ -805,6 +849,10 @@ extern const struct usbi_os_backend * const usbi_backend;
 
 extern const struct usbi_os_backend linux_usbfs_backend;
 extern const struct usbi_os_backend darwin_backend;
+
+int usbi_linux_direct_get_device(struct libusb_context *ctx,
+	uint8_t busnum, uint8_t devaddr, const char *sysfs_path,
+	struct libusb_device **dev);
 
 #endif
 

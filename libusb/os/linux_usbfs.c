@@ -275,8 +275,12 @@ static int __open_sysfs_attr(struct libusb_device *dev, const char *attr)
 	char filename[PATH_MAX];
 	int fd;
 
-	snprintf(filename, PATH_MAX, "%s/%s/%s",
-		SYSFS_DEVICE_PATH, priv->sysfs_dir, attr);
+	if (priv->sysfs_dir[0] == '/') {
+		snprintf(filename, PATH_MAX, "%s/%s", priv->sysfs_dir, attr);
+	} else {
+		snprintf(filename, PATH_MAX, "%s/%s/%s",
+			SYSFS_DEVICE_PATH, priv->sysfs_dir, attr);
+	}
 	fd = open(filename, O_RDONLY);
 	if (fd < 0) {
 		usbi_err(DEVICE_CTX(dev),
@@ -768,15 +772,18 @@ static int initialize_device(struct libusb_device *dev, uint8_t busnum,
 	return 0;
 }
 
-static int enumerate_device(struct libusb_context *ctx,
-	struct discovered_devs **_discdevs, uint8_t busnum, uint8_t devaddr,
-	const char *sysfs_dir)
+/* obtain a libusb_device from device address information.
+ * returns 0 if the device was found in memory, 1 if it was allocated due to
+ * this call (in which case the caller is the owner of the only reference), and
+ * negative on error.
+ * this function is non static as it is used by the hotplug code. */
+int usbi_linux_direct_get_device(struct libusb_context *ctx,
+	uint8_t busnum, uint8_t devaddr, const char *sysfs_path,
+	struct libusb_device **dev)
 {
-	struct discovered_devs *discdevs;
 	unsigned long session_id;
-	int need_unref = 0;
-	struct libusb_device *dev;
-	int r = 0;
+	struct libusb_device *_dev;
+	int r;
 
 	/* FIXME: session ID is not guaranteed unique as addresses can wrap and
 	 * will be reused. instead we should add a simple sysfs attribute with
@@ -785,24 +792,46 @@ static int enumerate_device(struct libusb_context *ctx,
 	usbi_dbg("busnum %d devaddr %d session_id %ld", busnum, devaddr,
 		session_id);
 
-	dev = usbi_get_device_by_session_id(ctx, session_id);
-	if (dev) {
+	_dev = usbi_get_device_by_session_id(ctx, session_id);
+	if (_dev) {
 		usbi_dbg("using existing device for %d/%d (session %ld)",
 			busnum, devaddr, session_id);
-	} else {
-		usbi_dbg("allocating new device for %d/%d (session %ld)",
-			busnum, devaddr, session_id);
-		dev = usbi_alloc_device(ctx, session_id);
-		if (!dev)
-			return LIBUSB_ERROR_NO_MEM;
-		need_unref = 1;
-		r = initialize_device(dev, busnum, devaddr, sysfs_dir);
-		if (r < 0)
-			goto out;
-		r = usbi_sanitize_device(dev);
-		if (r < 0)
-			goto out;
+		*dev = _dev;
+		return 0;
 	}
+
+	usbi_dbg("allocating new device for %d/%d (session %ld)",
+		busnum, devaddr, session_id);
+	_dev = usbi_alloc_device(ctx, session_id);
+	if (!_dev)
+		return LIBUSB_ERROR_NO_MEM;
+	r = initialize_device(_dev, busnum, devaddr, sysfs_path);
+	if (r < 0)
+		return r;
+	r = usbi_sanitize_device(_dev);
+	if (r < 0) {
+		libusb_unref_device(_dev);
+		return r;
+	}
+
+	*dev = _dev;
+	return 1;
+}
+
+static int enumerate_device(struct libusb_context *ctx,
+	struct discovered_devs **_discdevs, uint8_t busnum, uint8_t devaddr,
+	const char *sysfs_dir)
+{
+	struct discovered_devs *discdevs;
+	int need_unref = 0;
+	struct libusb_device *dev;
+	int r = 0;
+
+	r = usbi_linux_direct_get_device(ctx, busnum, devaddr, sysfs_dir, &dev);
+	if (r < 0)
+		return r;
+	else if (r == 1)
+		need_unref = 1;
 
 	discdevs = discovered_devs_append(*_discdevs, dev);
 	if (!discdevs)
@@ -810,7 +839,9 @@ static int enumerate_device(struct libusb_context *ctx,
 	else
 		*_discdevs = discdevs;
 
-out:
+	/* newly allocated devices will have 2 refs at this point - one from the
+	 * allocation, and the 2nd from being in the discovered list. drop one
+	 * so that the only remaining ref is due to the discovered list entry */
 	if (need_unref)
 		libusb_unref_device(dev);
 	return r;
@@ -2082,13 +2113,13 @@ static int reap_for_handle(struct libusb_device_handle *handle)
 }
 
 static int op_handle_events(struct libusb_context *ctx,
-	struct pollfd *fds, nfds_t nfds, int num_ready)
+	struct pollfd *fds, nfds_t nfds, int *num_ready)
 {
 	int r;
 	int i = 0;
 
 	pthread_mutex_lock(&ctx->open_devs_lock);
-	for (i = 0; i < nfds && num_ready > 0; i++) {
+	for (i = 0; i < nfds && *num_ready > 0; i++) {
 		struct pollfd *pollfd = &fds[i];
 		struct libusb_device_handle *handle;
 		struct linux_device_handle_priv *hpriv = NULL;
@@ -2096,12 +2127,18 @@ static int op_handle_events(struct libusb_context *ctx,
 		if (!pollfd->revents)
 			continue;
 
-		num_ready--;
 		list_for_each_entry(handle, &ctx->open_devs, list) {
 			hpriv =  __device_handle_priv(handle);
 			if (hpriv->fd == pollfd->fd)
 				break;
 		}
+
+		if (!hpriv || hpriv->fd != pollfd->fd) {
+			/* this file descriptor does not correspond to one of our devices */
+			continue;
+		}
+
+		(*num_ready)--;
 
 		if (pollfd->revents & POLLERR) {
 			usbi_remove_pollfd(HANDLE_CTX(handle), hpriv->fd);
