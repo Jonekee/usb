@@ -26,6 +26,10 @@ add_library(usb STATIC ${usb_SOURCES})
 
 target_link_libraries(usb ${IOKIT_LIBRARY} ${COREFOUNDATION_LIBRARY})
 
-install(TARGETS usb DESTINATION lib)
+install(TARGETS usb EXPORT usb-exports DESTINATION lib)
 
 install(FILES libusb/libusb.h DESTINATION include/libusb-1.0)
+
+install(FILES usb-config.cmake DESTINATION share/usb)
+
+install(EXPORT usb-exports DESTINATION share/usb)
