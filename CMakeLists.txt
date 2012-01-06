@@ -43,26 +43,8 @@ set(usb_SOURCES
     libusb/sync.c
 )
 
-set(PACKAGE "\"libusb\"")
-set(PACKAGE_BUGREPORT "\"libusb-devel@lists.sourceforge.net\"")
-set(PACKAGE_STRING "\"libusb 1.0.8\"")
-set(PACKAGE_TARNAME "\"libusb\"")
-set(PACKAGE_VERSION "\"1.0.8\"")
-
 set(ENABLE_DEBUG_LOGGING OFF)
 set(ENABLE_LOGGING OFF)
-
-set(HAVE_DLFCN_H ON)
-set(HAVE_MEMORY_H ON)
-set(HAVE_STDINT_H ON)
-set(HAVE_STDLIB_H ON)
-set(HAVE_STRINGS_H ON)
-set(HAVE_STRING_H ON)
-set(HAVE_SYS_STAT_H ON)
-set(HAVE_SYS_TYPES_H ON)
-set(HAVE_UNISTD_H ON)
-
-set(STDC_HEADERS ON)
 
 set(USBI_OS_HANDLES_TIMEOUT ON)
 set(USBI_TIMERFD_AVAILABLE OFF)
