@@ -177,7 +177,7 @@ static int usb_setup_device_iterator (io_iterator_t *deviceIterator, long locati
       CFDictionarySetValue (matchingDict, CFSTR(kIOPropertyMatchKey), propertyMatchDict);
       /* release out reference to the CFMutableDictionaryRef (CFDictionarySetValue retains it) */
       CFRelease (propertyMatchDict);
-}
+    }
     /* else we can still proceed as long as the caller accounts for the possibility of other devices in the iterator */
   }
 
@@ -275,7 +275,7 @@ static void darwin_devices_detached (void *ptr, io_iterator_t rem_devices) {
       continue;
 
     locationValid = CFGetTypeID(locationCF) == CFNumberGetTypeID() &&
-    CFNumberGetValue(locationCF, kCFNumberLongType, &location);
+	    CFNumberGetValue(locationCF, kCFNumberLongType, &location);
 
     CFRelease (locationCF);
 
@@ -567,7 +567,7 @@ static int darwin_cache_device_descriptor (struct libusb_context *ctx, struct li
   int unsuspended = 0, try_unsuspend = 1, try_reconfigure = 1;
   int is_open = 0;
   int ret = 0, ret2;
-  IOUSBDevRequest      req;
+  IOUSBDevRequest req;
   UInt8 bDeviceClass;
   UInt16 idProduct, idVendor;
 
@@ -575,7 +575,7 @@ static int darwin_cache_device_descriptor (struct libusb_context *ctx, struct li
   (*device)->GetDeviceProduct (device, &idProduct);
   (*device)->GetDeviceVendor (device, &idVendor);
 
-    priv = (struct darwin_device_priv *)dev->os_priv;
+  priv = (struct darwin_device_priv *)dev->os_priv;
 
   /* try to open the device (we can usually continue even if this fails) */
   is_open = ((*device)->USBDeviceOpenSeize(device) == kIOReturnSuccess);
@@ -651,13 +651,13 @@ static int darwin_cache_device_descriptor (struct libusb_context *ctx, struct li
   } while (kIOReturnSuccess != ret && retries--);
 
   if (unsuspended)
-	/* resuspend the device */
-	(void)(*device)->USBDeviceSuspend (device, 1);
+    /* resuspend the device */
+    (void)(*device)->USBDeviceSuspend (device, 1);
 
   if (is_open)
     (void) (*device)->USBDeviceClose (device);
 
-    if (ret != kIOReturnSuccess) {
+  if (ret != kIOReturnSuccess) {
     /* a debug message was already printed out for this error */
     if (LIBUSB_CLASS_HUB == bDeviceClass)
       usbi_dbg ("could not retrieve device descriptor %.4x:%.4x: %s. skipping device", idVendor, idProduct, darwin_error_str (ret));
@@ -665,7 +665,7 @@ static int darwin_cache_device_descriptor (struct libusb_context *ctx, struct li
       usbi_warn (ctx, "could not retrieve device descriptor %.4x:%.4x: %s. skipping device", idVendor, idProduct, darwin_error_str (ret));
 
     return -1;
-    }
+  }
 
   usbi_dbg ("device descriptor:");
   usbi_dbg (" bDescriptorType:    0x%02x", priv->dev_descriptor.bDescriptorType);
@@ -682,11 +682,11 @@ static int darwin_cache_device_descriptor (struct libusb_context *ctx, struct li
   usbi_dbg (" iSerialNumber:      0x%02x", priv->dev_descriptor.iSerialNumber);
   usbi_dbg (" bNumConfigurations: 0x%02x", priv->dev_descriptor.bNumConfigurations);
 
-    /* catch buggy hubs (which appear to be virtual). Apple's own USB prober has problems with these devices. */
-    if (libusb_le16_to_cpu (priv->dev_descriptor.idProduct) != idProduct) {
-      /* not a valid device */
-      usbi_warn (ctx, "idProduct from iokit (%04x) does not match idProduct in descriptor (%04x). skipping device",
-		 idProduct, libusb_le16_to_cpu (priv->dev_descriptor.idProduct));
+  /* catch buggy hubs (which appear to be virtual). Apple's own USB prober has problems with these devices. */
+  if (libusb_le16_to_cpu (priv->dev_descriptor.idProduct) != idProduct) {
+    /* not a valid device */
+    usbi_warn (ctx, "idProduct from iokit (%04x) does not match idProduct in descriptor (%04x). skipping device",
+	       idProduct, libusb_le16_to_cpu (priv->dev_descriptor.idProduct));
     return -1;
   }
 
@@ -1372,6 +1372,7 @@ static int submit_iso_transfer(struct usbi_transfer *itransfer) {
 
     return darwin_to_libusb (kresult);
   }
+
   /* schedule for a frame a little in the future */
   frame += 4;
 
@@ -1387,7 +1388,6 @@ static int submit_iso_transfer(struct usbi_transfer *itransfer) {
     kresult = (*(cInterface->interface))->WriteIsochPipeAsync(cInterface->interface, pipeRef, transfer->buffer, frame,
 							      transfer->num_iso_packets, tpriv->isoc_framelist, darwin_async_io_callback,
 							      itransfer);
-  cInterface->frames[transfer->endpoint] = frame + transfer->num_iso_packets / 8;
 
   cInterface->frames[transfer->endpoint] = frame + transfer->num_iso_packets / 8;
 
@@ -1423,7 +1423,7 @@ static int submit_control_transfer(struct usbi_transfer *itransfer) {
   tpriv->req.pData             = transfer->buffer + LIBUSB_CONTROL_SETUP_SIZE;
   tpriv->req.completionTimeout = transfer->timeout;
   tpriv->req.noDataTimeout     = transfer->timeout;
-  
+
   itransfer->flags |= USBI_TRANSFER_OS_HANDLES_TIMEOUT;
 
   /* all transfers in libusb-1.0 are async */
@@ -1443,7 +1443,7 @@ static int submit_control_transfer(struct usbi_transfer *itransfer) {
     kresult = (*(cInterface->interface))->ControlRequestAsyncTO (cInterface->interface, pipeRef, &(tpriv->req), darwin_async_io_callback, itransfer);
   } else
     /* control request on endpoint 0 */
-  kresult = (*(dpriv->device))->DeviceRequestAsyncTO(dpriv->device, &(tpriv->req), darwin_async_io_callback, itransfer);
+    kresult = (*(dpriv->device))->DeviceRequestAsyncTO(dpriv->device, &(tpriv->req), darwin_async_io_callback, itransfer);
 
   if (kresult != kIOReturnSuccess)
     usbi_err (TRANSFER_CTX (transfer), "control request failed: %s", darwin_error_str(kresult));
