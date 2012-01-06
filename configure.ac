@@ -1,12 +1,21 @@
-m4_define(LIBUSB_MAJOR, [1])
-m4_define(LIBUSB_MINOR, [0])
-m4_define(LIBUSB_MICRO, [8])
+dnl These m4 macros are whitespace sensitive and break if moved around much.
+m4_define([LU_VERSION_H], m4_include([libusb/version.h]))
+m4_define([LU_DEFINE_VERSION_ATOM],
+	[m4_define([$1], m4_bregexp(LU_VERSION_H,
+	[^#define\s*$1\s*\([0-9]*\).*], [\1]))])
+m4_define([LU_DEFINE_VERSION_RC_ATOM],
+	[m4_define([$1], m4_bregexp(LU_VERSION_H,
+	[^#define\s*$1\s*"\(-rc[0-9]*\)".*], [\1]))])
+dnl The m4_bregexp() returns (only) the numbers following the #define named
+dnl in the first macro parameter. m4_define() then defines the name for use
+dnl in AC_INIT().
 
-AC_INIT([libusb], LIBUSB_MAJOR.LIBUSB_MINOR.LIBUSB_MICRO, [libusb-devel@lists.sourceforge.net], [libusb], [http://www.libusb.org/])
+LU_DEFINE_VERSION_ATOM([LIBUSB_MAJOR])
+LU_DEFINE_VERSION_ATOM([LIBUSB_MINOR])
+LU_DEFINE_VERSION_ATOM([LIBUSB_MICRO])
+LU_DEFINE_VERSION_RC_ATOM([LIBUSB_RC])
 
-AC_SUBST([LIBUSB_VERSION_MAJOR], [LIBUSB_MAJOR])
-AC_SUBST([LIBUSB_VERSION_MINOR], [LIBUSB_MINOR])
-AC_SUBST([LIBUSB_VERSION_MICRO], [LIBUSB_MICRO])
+AC_INIT([libusb], LIBUSB_MAJOR[.]LIBUSB_MINOR[.]LIBUSB_MICRO[]LIBUSB_RC, [libusb-devel@lists.sourceforge.net], [libusb], [http://www.libusb.org/])
 
 # Library versioning
 # These numbers should be tweaked on every release. Read carefully:
@@ -15,11 +24,11 @@ AC_SUBST([LIBUSB_VERSION_MICRO], [LIBUSB_MICRO])
 lt_current="1"
 lt_revision="0"
 lt_age="1"
-AC_SUBST(lt_current)
-AC_SUBST(lt_revision)
-AC_SUBST(lt_age)
+LTLDFLAGS="-version-info ${lt_current}:${lt_revision}:${lt_age}"
 
 AM_INIT_AUTOMAKE
+AM_MAINTAINER_MODE
+
 AC_CONFIG_SRCDIR([libusb/core.c])
 AC_CONFIG_MACRO_DIR([m4])
 AM_CONFIG_HEADER([config.h])
@@ -28,73 +37,73 @@ m4_ifdef([AM_SILENT_RULES],[AM_SILENT_RULES([yes])])
 AC_PREREQ([2.50])
 AC_PROG_CC
 AC_PROG_LIBTOOL
+LT_LANG([Windows Resource])
 AC_C_INLINE
 AM_PROG_CC_C_O
-AC_DEFINE([_GNU_SOURCE], [], [Use GNU extensions])
+AC_DEFINE([_GNU_SOURCE], 1, [Use GNU extensions])
 
-AM_MAINTAINER_MODE
+LTLDFLAGS="${LTLDFLAGS} -no-undefined"
 
 AC_MSG_CHECKING([operating system])
-PC_LIBS_PRIVATE=
 case $host in
 *-linux*)
-	AC_DEFINE(OS_LINUX, [], [Linux backend])
+	AC_DEFINE(OS_LINUX, 1, [Linux backend])
 	AC_SUBST(OS_LINUX)
-	AC_DEFINE([THREADS_POSIX], [], [Use Posix Threads])
 	AC_MSG_RESULT([Linux])
 	backend="linux"
 	AC_CHECK_LIB(rt, clock_gettime, PC_LIBS_PRIVATE="-lrt")
-	LIBS="${LIBS} ${PC_LIBS_PRIVATE}"
 	threads="posix"
 	THREAD_CFLAGS="-pthread"
 	PC_LIBS_PRIVATE="${PC_LIBS_PRIVATE} -pthread"
-	AM_LDFLAGS=""
+	AC_CHECK_HEADERS([poll.h])
+	AC_DEFINE([POLL_NFDS_TYPE],[nfds_t],[type of second poll() argument])
 	;;
 *-darwin*)
-	AC_DEFINE(OS_DARWIN, [], [Darwin backend])
+	AC_DEFINE(OS_DARWIN, 1, [Darwin backend])
 	AC_SUBST(OS_DARWIN)
-	AC_DEFINE([THREADS_POSIX], [], [Use Posix Threads])
-	AC_DEFINE(USBI_OS_HANDLES_TIMEOUT, [], [Backend handles timeout])
-	AC_MSG_RESULT([Darwin/MacOS X])
+	AC_MSG_RESULT([Darwin/Mac OS X])
 	backend="darwin"
 	threads="posix"
-	THREAD_CFLAGS="-pthread"
-	PC_LIBS_PRIVATE="-Wl,-framework,IOKit -Wl,-framework,CoreFoundation -Wl,-prebind -no-undefined -pthread"
-	AM_LDFLAGS=${PC_LIBS_PRIVATE}
-;;
+	LIBS="${LIBS} -lobjc"
+	PC_LIBS_PRIVATE="-Wl,-framework,IOKit -Wl,-framework,CoreFoundation"
+	LTLDFLAGS="${LTLDFLAGS} -Wl,-prebind"
+	AC_CHECK_HEADERS([poll.h])
+	AC_CHECK_TYPE([nfds_t],
+		[AC_DEFINE([POLL_NFDS_TYPE],[nfds_t],[type of second poll() argument])],
+		[AC_DEFINE([POLL_NFDS_TYPE],[unsigned int],[type of second poll() argument])],
+		[#include <poll.h>])
+	;;
 *-mingw*)
-	AC_DEFINE(OS_WINDOWS, [], [Windows backend])
-	AC_SUBST(OS_WINDOWS)
 	AC_MSG_RESULT([Windows])
 	backend="windows"
-	threads="windows"
-	PC_LIBS_PRIVATE="-lsetupapi -lole32 -ladvapi32"
-	LIBS="${LIBS} ${PC_LIBS_PRIVATE}"
-	# -avoid-version to avoid a naming scheme such as libusb-0.dll
-	AM_LDFLAGS="-no-undefined -avoid-version --add-stdcall-alias"
-	AC_CHECK_TOOL(RC, windres, no)
 	;;
 *-cygwin*)
-	AC_DEFINE(OS_WINDOWS, [], [Windows backend])
-	AC_SUBST(OS_WINDOWS)
-	AC_DEFINE([THREADS_POSIX], [], [Use Posix Threads])
-	AC_MSG_RESULT([Windows])
+	AC_MSG_RESULT([Cygwin (using Windows backend)])
 	backend="windows"
 	threads="posix"
-	PC_LIBS_PRIVATE="-lsetupapi -lole32 -ladvapi32"
-	LIBS="${LIBS} ${PC_LIBS_PRIVATE}"
-	AM_LDFLAGS="-no-undefined -avoid-version"
-	AC_CHECK_TOOL(RC, windres, no)
 	;;
 *)
 	AC_MSG_ERROR([unsupported operating system])
 esac
+if test "$backend" = windows; then
+	AC_DEFINE(OS_WINDOWS, 1, [Windows backend])
+	AC_SUBST(OS_WINDOWS)
+	PC_LIBS_PRIVATE=""
+	LTLDFLAGS="${LTLDFLAGS} -avoid-version -Wl,--add-stdcall-alias"
+	AC_CHECK_TOOL(RC, windres, no)
+	AC_DEFINE([POLL_NFDS_TYPE],[unsigned int],[type of second poll() argument])
+fi
+AC_SUBST(THREAD_CFLAGS)
 AC_SUBST(PC_LIBS_PRIVATE)
+LIBS="${LIBS} ${PC_LIBS_PRIVATE}"
 
-AM_CONDITIONAL([OS_LINUX], [test "x$backend" = "xlinux"])
-AM_CONDITIONAL([OS_DARWIN], [test "x$backend" = "xdarwin"])
-AM_CONDITIONAL([OS_WINDOWS], [test "x$backend" = "xwindows"])
-AM_CONDITIONAL([THREADS_POSIX], [test "x$threads" = "xposix"])
+AM_CONDITIONAL(OS_LINUX, test "x$backend" = xlinux)
+AM_CONDITIONAL(OS_DARWIN, test "x$backend" = xdarwin)
+AM_CONDITIONAL(OS_WINDOWS, test "x$backend" = xwindows)
+AM_CONDITIONAL(THREADS_POSIX, test "x$threads" = xposix)
+if test "$threads" = posix; then
+	AC_DEFINE(THREADS_POSIX, 1, [Use POSIX Threads])
+fi
 
 # timerfd
 AC_CHECK_HEADER([sys/timerfd.h], [timerfd_h=1], [timerfd_h=0])
@@ -118,7 +127,7 @@ if test "x$use_timerfd" = "xno"; then
 else
 	if test "x$timerfd_h" = "x1" -a "x$tfd_hdr_ok" = "xyes"; then
 		AC_MSG_RESULT([yes])
-		AC_DEFINE(USBI_TIMERFD_AVAILABLE, [], [timerfd headers available])
+		AC_DEFINE(USBI_TIMERFD_AVAILABLE, 1, [timerfd headers available])
 	else
 		AC_MSG_RESULT([no (header not available)])
 	fi
@@ -149,17 +158,11 @@ AC_ARG_ENABLE([examples-build], [AS_HELP_STRING([--enable-examples-build],
 	[build_examples='no'])
 AM_CONDITIONAL([BUILD_EXAMPLES], [test "x$build_examples" != "xno"])
 
-# Restore gnu89 inline semantics on gcc 4.3 and newer
-saved_cflags="$CFLAGS"
-CFLAGS="$CFLAGS -fgnu89-inline"
-AC_COMPILE_IFELSE(AC_LANG_PROGRAM([]), inline_cflags="-fgnu89-inline", inline_cflags="")
-CFLAGS="$saved_cflags"
-
 # check for -fvisibility=hidden compiler support (GCC >= 3.4)
 saved_cflags="$CFLAGS"
 # -Werror required for cygwin
 CFLAGS="$CFLAGS -Werror -fvisibility=hidden"
-AC_COMPILE_IFELSE(AC_LANG_PROGRAM([]),
+AC_COMPILE_IFELSE([AC_LANG_PROGRAM([])],
 	[VISIBILITY_CFLAGS="-fvisibility=hidden"
 	 AC_DEFINE([DEFAULT_VISIBILITY], [__attribute__((visibility("default")))], [Default visibility]) ],
 	[ VISIBILITY_CFLAGS=""
@@ -170,7 +173,7 @@ CFLAGS="$saved_cflags"
 # check for -Wno-pointer-sign compiler support (GCC >= 4)
 saved_cflags="$CFLAGS"
 CFLAGS="$CFLAGS -Wno-pointer-sign"
-AC_COMPILE_IFELSE(AC_LANG_PROGRAM([]),
+AC_COMPILE_IFELSE([AC_LANG_PROGRAM([])],
 	nopointersign_cflags="-Wno-pointer-sign", nopointersign_cflags="")
 CFLAGS="$saved_cflags"
 
@@ -181,14 +184,16 @@ AM_CONDITIONAL([HAVE_SIGACTION], [test "x$have_sigaction" = "xyes"])
 # headers not available on all platforms but required on others
 AC_CHECK_HEADERS([sys/time.h])
 
-AC_SUBST([THREAD_CFLAGS])
-
-AM_CFLAGS="-std=gnu99 $inline_cflags -Wall -Wundef -Wunused -Wstrict-prototypes -Werror-implicit-function-declaration $nopointersign_cflags -Wshadow"
+AM_CFLAGS="-std=gnu99 -Wall -Wundef -Wunused -Wstrict-prototypes -Werror-implicit-function-declaration $nopointersign_cflags -Wshadow"
 
 AC_SUBST(VISIBILITY_CFLAGS)
 AC_SUBST(AM_CFLAGS)
-AC_SUBST(AM_LDFLAGS)
+AC_SUBST(LTLDFLAGS)
 
-AC_CONFIG_FILES([libusb-1.0.pc] [Makefile] [libusb/Makefile] [libusb/libusb-1.0.rc] [examples/Makefile] [doc/Makefile] [doc/doxygen.cfg])
+AC_CONFIG_FILES([libusb-1.0.pc])
+AC_CONFIG_FILES([Makefile])
+AC_CONFIG_FILES([libusb/Makefile])
+AC_CONFIG_FILES([examples/Makefile])
+AC_CONFIG_FILES([doc/Makefile])
+AC_CONFIG_FILES([doc/doxygen.cfg])
 AC_OUTPUT
-

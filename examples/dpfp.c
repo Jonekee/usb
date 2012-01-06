@@ -27,7 +27,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-#include <libusb/libusb.h>
+#include <libusb.h>
 
 #define EP_INTR			(1 | LIBUSB_ENDPOINT_IN)
 #define EP_DATA			(2 | LIBUSB_ENDPOINT_IN)
@@ -225,7 +225,6 @@ static int save_to_file(unsigned char *data)
 {
 	FILE *fd;
 	char filename[64];
-	size_t ignore;
 
 	sprintf(filename, "finger%d.pgm", img_idx++);
 	fd = fopen(filename, "w");
@@ -233,7 +232,7 @@ static int save_to_file(unsigned char *data)
 		return -1;
 
 	fputs("P5 384 289 255 ", fd);
-	ignore = fwrite(data + 64, 1, 384*289, fd);
+	(void) fwrite(data + 64, 1, 384*289, fd);
 	fclose(fd);
 	printf("saved image to %s\n", filename);
 	return 0;

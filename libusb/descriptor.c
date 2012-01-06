@@ -39,12 +39,12 @@
 
 /* set host_endian if the w values are already in host endian format,
  * as opposed to bus endian. */
-int usbi_parse_descriptor(unsigned char *source, char *descriptor, void *dest,
-	int host_endian)
+int usbi_parse_descriptor(unsigned char *source, const char *descriptor,
+	void *dest, int host_endian)
 {
 	unsigned char *sp = source, *dp = dest;
 	uint16_t w;
-	char *cp;
+	const char *cp;
 
 	for (cp = descriptor; *cp; cp++) {
 		switch (*cp) {
@@ -188,7 +188,7 @@ static int parse_interface(libusb_context *ctx,
 	int len;
 	int r;
 	int parsed = 0;
-	int tmp;
+	size_t tmp;
 	struct usb_descriptor_header header;
 	struct libusb_interface_descriptor *ifp;
 	unsigned char *begin;
@@ -257,11 +257,13 @@ static int parse_interface(libusb_context *ctx,
 		}
 
 		/* Did we hit an unexpected descriptor? */
-		usbi_parse_descriptor(buffer, "bb", &header, 0);
-		if ((size >= DESC_HEADER_LENGTH) &&
-				((header.bDescriptorType == LIBUSB_DT_CONFIG) ||
-				 (header.bDescriptorType == LIBUSB_DT_DEVICE)))
-			return parsed;
+		if (size >= DESC_HEADER_LENGTH) {
+			usbi_parse_descriptor(buffer, "bb", &header, 0);
+			if ((header.bDescriptorType == LIBUSB_DT_CONFIG) ||
+			    (header.bDescriptorType == LIBUSB_DT_DEVICE)) {
+				return parsed;
+			}
+		}
 
 		if (ifp->bNumEndpoints > USB_MAXENDPOINTS) {
 			usbi_err(ctx, "too many endpoints (%d)", ifp->bNumEndpoints);
@@ -334,7 +336,7 @@ static int parse_configuration(struct libusb_context *ctx,
 	int i;
 	int r;
 	int size;
-	int tmp;
+	size_t tmp;
 	struct usb_descriptor_header header;
 	struct libusb_interface *usb_interface;
 
@@ -681,10 +683,17 @@ int API_EXPORTED libusb_get_string_descriptor_ascii(libusb_device_handle *dev,
 	uint16_t langid;
 
 	/* Asking for the zero'th index is special - it returns a string
-	 * descriptor that contains all the language IDs supported by the device.
-	 * Typically there aren't many - often only one. The language IDs are 16
-	 * bit numbers, and they start at the third byte in the descriptor. See
-	 * USB 2.0 specification section 9.6.7 for more information. */
+	 * descriptor that contains all the language IDs supported by the
+	 * device. Typically there aren't many - often only one. Language
+	 * IDs are 16 bit numbers, and they start at the third byte in the
+	 * descriptor. There's also no point in trying to read descriptor 0
+	 * with this function. See USB 2.0 specification section 9.6.7 for
+	 * more information.
+	 */
+
+	if (desc_index == 0)
+		return LIBUSB_ERROR_INVALID_PARAM;
+
 	r = libusb_get_string_descriptor(dev, 0, 0, tbuf, sizeof(tbuf));
 	if (r < 0)
 		return r;
