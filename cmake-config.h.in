@@ -43,7 +43,11 @@
 #define inline @INLINE@
 #endif
 
+#cmakedefine HAVE_POLL_H
+
 #cmakedefine HAS_POLL_NFDS_TYPE
-#ifndef HAS_POLL_NFDS_TYPE
+#ifdef HAS_POLL_NFDS_TYPE
+#define POLL_NFDS_TYPE nfds_t
+#else
 #define POLL_NFDS_TYPE unsigned int
 #endif

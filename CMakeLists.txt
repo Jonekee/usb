@@ -13,6 +13,7 @@ endif()
 
 set(usb_POSIX_SOURCES
     libusb/os/threads_posix.h
+    libusb/os/threads_posix.c
     libusb/os/poll_posix.h
 )
 
@@ -55,6 +56,7 @@ if(UNIX)
     set(THREADS_POSIX ON)
     set(DEFAULT_VISIBILITY "__attribute__((visibility(\"default\")))")
     set(HAS_POLL_NFDS_TYPE ON)
+    set(HAVE_POLL_H ON)
     set(HAVE_SYS_TIME_H ON)
     set(HAVE_STRUCT_TIMESPEC ON)
     set(HAVE_INTTYPES_H ON)
@@ -71,7 +73,8 @@ if(UNIX)
         list(APPEND usb_SOURCES ${usb_DARWIN_SOURCES})
         find_library(COREFOUNDATION_LIBRARY CoreFoundation)
         find_library(         IOKIT_LIBRARY IOKit)
-        list(APPEND usb_LIBRARIES ${IOKIT_LIBRARY} ${COREFOUNDATION_LIBRARY})
+        find_library(          OBJC_LIBRARY objc)
+        list(APPEND usb_LIBRARIES ${IOKIT_LIBRARY} ${COREFOUNDATION_LIBRARY} ${OBJC_LIBRARY})
     endif()
 elseif(WIN32)
     set(OS_WINDOWS ON)
