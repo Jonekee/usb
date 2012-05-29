@@ -106,6 +106,8 @@ if(usb_LIBRARIES)
     target_link_libraries(usb ${usb_LIBRARIES})
 endif()
 
+set_property(TARGET usb PROPERTY OUTPUT_NAME usb-1.0)
+
 install(TARGETS usb EXPORT usb-exports DESTINATION lib)
 
 install(FILES libusb/libusb.h DESTINATION include/libusb-1.0)
